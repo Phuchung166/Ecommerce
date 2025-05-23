@@ -8,8 +8,11 @@ import Orders from './pages/Orders'
 import Users from './pages/Users'
 import Login from './components/Login'
 import { ToastContainer } from 'react-toastify';
+import Feedbacks from './pages/Feedbacks'
 
 export const backendUrl = import.meta.env.VITE_BACKEND_URL
+export const currency = '$'
+
 const App = () => {
 
   const [token, setToken] = useState(localStorage.getItem('token') ? localStorage.getItem('token') : '');
@@ -34,6 +37,7 @@ const App = () => {
                 <Route path='/list' element={<List token={token} />} />
                 <Route path='/orders' element={<Orders token={token} />} />
                 <Route path='/users' element={<Users token={token} />} />
+                <Route path='/feedbacks' element={<Feedbacks token={token} />} />
               </Routes>
             </div>
           </div>

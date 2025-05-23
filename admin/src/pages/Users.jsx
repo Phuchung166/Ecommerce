@@ -1,380 +1,300 @@
-// import React, { useState } from "react";
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import validator from 'validator';
+import { toast } from 'react-toastify';
+import { useNavigate } from 'react-router-dom';
+import { backendUrl } from '../App';
 
-// const initialUsers = [
-//   { id: 1, name: "John Doe", email: "john@example.com", phone: "123-456-7890", role: "Admin" },
-//   { id: 2, name: "Alice Smith", email: "alice@example.com", phone: "987-654-3210", role: "User" },
-//   { id: 3, name: "Bob Johnson", email: "bob@example.com", phone: "456-789-1234", role: "User" },
-// ];
+const Users = ({ token }) => {
+    const navigate = useNavigate();
+    const [users, setUsers] = useState([]);
+    const [editUser, setEditUser] = useState(null);
+    const [editData, setEditData] = useState({ id: null, name: '', email: '' });
+    const [deleteConfirm, setDeleteConfirm] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [page, setPage] = useState(1);
+    const [limit] = useState(20);
+    const [totalPages, setTotalPages] = useState(1);
+    const [search, setSearch] = useState('');
 
-// const Users = () => {
-//   const [users, setUsers] = useState(initialUsers);
-
-//   const deleteUser = (id) => {
-//     setUsers(users.filter(user => user.id !== id));
-//   };
-
-//   return (
-//     <div className="p-6 max-w-5xl mx-auto bg-gray-100 min-h-screen">
-//       <h2 className="text-2xl font-semibold mb-4">User Management</h2>
-//       <div className="bg-white shadow-md rounded-lg overflow-hidden">
-//         <table className="w-full border-collapse">
-//           <thead>
-//             <tr className="bg-gray-200">
-//               <th className="p-3 text-left">ID</th>
-//               <th className="p-3 text-left">Name</th>
-//               <th className="p-3 text-left">Email</th>
-//               <th className="p-3 text-left">Phone</th>
-//               <th className="p-3 text-left">Role</th>
-//               <th className="p-3 text-left">Actions</th>
-//             </tr>
-//           </thead>
-//           <tbody>
-//             {users.map((user) => (
-//               <tr key={user.id} className="border-b">
-//                 <td className="p-3">{user.id}</td>
-//                 <td className="p-3">{user.name}</td>
-//                 <td className="p-3">{user.email}</td>
-//                 <td className="p-3">{user.phone}</td>
-//                 <td className="p-3">
-//                   <span className={`px-2 py-1 text-xs font-semibold rounded ${user.role === "Admin" ? "bg-red-200 text-red-800" : "bg-blue-200 text-blue-800"}`}>
-//                     {user.role}
-//                   </span>
-//                 </td>
-//                 <td className="p-3">
-//                   <button className="bg-yellow-500 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-600">Edit</button>
-//                   <button onClick={() => deleteUser(user.id)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
-//                 </td>
-//               </tr>
-//             ))}
-//           </tbody>
-//         </table>
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default Users;
-
-
-
-
-import React, { useState } from "react";
-
-const initialUsers = [
-    { id: 1, name: "John Doe", email: "john@example.com", phone: "123-456-7890", role: "Admin" },
-    { id: 2, name: "Alice Smith", email: "alice@example.com", phone: "987-654-3210", role: "User" },
-    { id: 3, name: "Bob Johnson", email: "bob@example.com", phone: "456-789-1234", role: "User" },
-];
-
-const Users = () => {
-    const [users, setUsers] = useState(initialUsers);
-    const [editId, setEditId] = useState(null);
-    const [editData, setEditData] = useState({ id: null, name: "", email: "", phone: "", role: "" });
-
-    const startEdit = (user) => {
-        setEditId(user.id);
-        setEditData(user);
+    // Lấy danh sách người dùng
+    const fetchUsers = async () => {
+        setLoading(true);
+        try {
+            const response = await axios.get(`${backendUrl}/api/user/all`, {
+                headers: { token },
+                params: { page, limit, search },
+            });
+            if (response.data.success) {
+                setUsers(response.data.users);
+                setTotalPages(response.data.totalPages);
+            } else {
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            console.error('Fetch users error:', error);
+            toast.error(error.response?.data?.message || 'Lỗi khi tải danh sách người dùng');
+            if (error.response?.status === 401 || error.response?.status === 403) {
+                navigate('/admin');
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
+    // Gọi API khi page hoặc token thay đổi
+    useEffect(() => {
+        if (token) {
+            fetchUsers();
+        } else {
+            toast.error('Vui lòng đăng nhập với quyền admin');
+            navigate('/admin');
+        }
+    }, [token, page, search, navigate]);
+
+    // Mở modal chỉnh sửa
+    const openEditModal = (user) => {
+        setEditUser(user._id);
+        setEditData({ id: user._id, name: user.name, email: user.email });
+    };
+
+    // Xử lý thay đổi input trong modal
     const handleEditChange = (e) => {
         setEditData({ ...editData, [e.target.name]: e.target.value });
     };
 
-    const saveEdit = () => {
-        setUsers(users.map(user => (user.id === editData.id ? editData : user)));
-        setEditId(null);
+    // Lưu chỉnh sửa
+    const saveEdit = async () => {
+        if (!validator.isEmail(editData.email)) {
+            toast.error('Email không hợp lệ');
+            return;
+        }
+        try {
+            const response = await axios.put(
+                `${backendUrl}/api/user/edit/${editData.id}`,
+                { name: editData.name, email: editData.email },
+                { headers: { token } }
+            );
+            if (response.data.success) {
+                setUsers(users.map((user) => (user._id === editData.id ? response.data.user : user)));
+                setEditUser(null);
+                toast.success('Cập nhật người dùng thành công');
+            } else {
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            console.error('Save edit error:', error);
+            toast.error(error.response?.data?.message || 'Lỗi khi cập nhật người dùng');
+        }
     };
 
-    const cancelEdit = () => {
-        setEditId(null);
+    // Đóng modal chỉnh sửa
+    const closeEditModal = () => {
+        setEditUser(null);
     };
 
-    const deleteUser = (id) => {
-        setUsers(users.filter(user => user.id !== id));
+    // Xác nhận xóa
+    const confirmDelete = (id) => {
+        setDeleteConfirm(id);
+    };
+
+    // Xóa người dùng
+    const deleteUser = async (id) => {
+        try {
+            const response = await axios.delete(`${backendUrl}/api/user/delete/${id}`, {
+                headers: { token },
+            });
+            if (response.data.success) {
+                setUsers(users.filter((user) => user._id !== id));
+                setDeleteConfirm(null);
+                toast.success('Xóa người dùng thành công');
+                if (users.length === 1 && page > 1) {
+                    setPage(page - 1);
+                } else {
+                    fetchUsers();
+                }
+            } else {
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            console.error('Delete user error:', error);
+            toast.error(error.response?.data?.message || 'Lỗi khi xóa người dùng');
+        }
+    };
+
+    // Hủy xóa
+    const cancelDelete = () => {
+        setDeleteConfirm(null);
+    };
+
+    // Xử lý chuyển trang
+    const handlePageChange = (newPage) => {
+        if (newPage >= 1 && newPage <= totalPages) {
+            setPage(newPage);
+        }
+    };
+
+    // Xử lý tìm kiếm
+    const handleSearchChange = (e) => {
+        setSearch(e.target.value);
+        setPage(1); // Reset về trang 1 khi tìm kiếm
     };
 
     return (
-        <div className="p-6 max-w-8xl mx-auto bg-gray-100 min-h-screen">
-            <h2 className="text-2xl font-semibold mb-4">User Management</h2>
-            <div className="bg-white shadow-md rounded-lg overflow-hidden">
-                <table className="w-full border-collapse">
-                    <thead>
-                        <tr className="bg-gray-200">
-                            <th className="p-3 text-left">ID</th>
-                            <th className="p-3 text-left">Name</th>
-                            <th className="p-3 text-left">Email</th>
-                            <th className="p-3 text-left">Phone</th>
-                            <th className="p-3 text-left">Role</th>
-                            <th className="p-3 text-left">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {users.map((user) => (
-                            <tr key={user.id} className="border-b">
-                                <td className="p-3">{user.id}</td>
-                                <td className="p-3">
-                                    {editId === user.id ? (
-                                        <input type="text" name="name" value={editData.name} onChange={handleEditChange} className="border p-1 w-full" />
-                                    ) : (
-                                        user.name
-                                    )}
-                                </td>
-                                <td className="p-3">
-                                    {editId === user.id ? (
-                                        <input type="email" name="email" value={editData.email} onChange={handleEditChange} className="border p-1 w-full" />
-                                    ) : (
-                                        user.email
-                                    )}
-                                </td>
-                                <td className="p-3">
-                                    {editId === user.id ? (
-                                        <input type="text" name="phone" value={editData.phone} onChange={handleEditChange} className="border p-1 w-full" />
-                                    ) : (
-                                        user.phone
-                                    )}
-                                </td>
-                                <td className="p-3">
-                                    {editId === user.id ? (
-                                        <select name="role" value={editData.role} onChange={handleEditChange} className="border p-1 w-full">
-                                            <option value="Admin">Admin</option>
-                                            <option value="User">User</option>
-                                        </select>
-                                    ) : (
-                                        <span className={`px-2 py-1 text-xs font-semibold rounded ${user.role === "Admin" ? "bg-red-200 text-red-800" : "bg-blue-200 text-blue-800"}`}>
-                                            {user.role}
-                                        </span>
-                                    )}
-                                </td>
-                                <td className="p-3">
-                                    {editId === user.id ? (
-                                        <>
-                                            <button onClick={saveEdit} className="bg-green-500 text-white px-3 py-1 rounded mr-2 hover:bg-green-600">Save</button>
-                                            <button onClick={cancelEdit} className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">Cancel</button>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <button onClick={() => startEdit(user)} className="bg-yellow-500 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-600">Edit</button>
-                                            <button onClick={() => deleteUser(user.id)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
-                                        </>
-                                    )}
-                                </td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
+        <div className="max-w-4xl mx-auto  min-h-screen">
+            <h2 className="text-2xl font-semibold mb-4">User management </h2>
+            <div className="mb-4">
+                <input
+                    type="text"
+                    value={search}
+                    onChange={handleSearchChange}
+                    placeholder="Tìm kiếm theo tên hoặc email"
+                    className="w-full max-w-md px-3 py-2 border border-gray-300 rounded"
+                />
             </div>
+            {loading ? (
+                <div className="text-center py-8">Đang tải...</div>
+            ) : users.length === 0 ? (
+                <div className="text-center py-8">Không tìm thấy người dùng</div>
+            ) : (
+                <div className="overflow-x-auto max-h-[70vh]">
+                    <table className="min-w-full bg-white shadow-md rounded-lg overflow-hidden">
+                        <thead className="bg-gray-200 text-gray-700 sticky top-0 z-10">
+                            <tr>
+                                <th className="px-4 py-2 text-left">Avatar</th>
+                                <th className="px-4 py-2 text-left">Name</th>
+                                <th className="px-4 py-2 text-left">Email</th>
+                                <th className="px-4 py-2 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {users.map((user) => (
+                                <tr key={user._id} className="border-t">
+                                    <td className="px-4 py-2">
+                                        <img
+                                            src={user.avatar || 'https://via.placeholder.com/40'}
+                                            alt={user.name}
+                                            className="w-12 h-12 object-cover rounded-md"
+                                        />
+                                    </td>
+                                    <td className="px-4 py-2">{user.name}</td>
+                                    <td className="px-4 py-2">{user.email}</td>
+                                    <td className="px-4 py-2 text-center">
+                                        <div className="flex gap-2 justify-center">
+                                            <button
+                                                onClick={() => openEditModal(user)}
+                                                className="bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button
+                                                onClick={() => confirmDelete(user._id)}
+                                                className="bg-red-500 text-white px-3 py-1 rounded text-sm hover:bg-red-600"
+                                            >
+                                                Delete
+                                            </button>
+                                            
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+            {totalPages > 1 && (
+                <div className="flex justify-center mt-8">
+                    <button
+                        onClick={() => handlePageChange(page - 1)}
+                        disabled={page === 1}
+                        className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 cursor-pointer"
+                    >
+                        Trang trước
+                    </button>
+                    {[...Array(totalPages)].map((_, index) => (
+                        <button
+                            key={index}
+                            onClick={() => handlePageChange(index + 1)}
+                            className={`px-4 py-2 mx-1 ${page === index + 1 ? 'bg-pink-300 text-white' : 'bg-gray-200'
+                                } rounded hover:bg-pink-200 cursor-pointer`}
+                        >
+                            {index + 1}
+                        </button>
+                    ))}
+                    <button
+                        onClick={() => handlePageChange(page + 1)}
+                        disabled={page === totalPages}
+                        className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 cursor-pointer"
+                    >
+                        Trang sau
+                    </button>
+                </div>
+            )}
+            {editUser && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+                        <h3 className="text-lg font-semibold mb-4">Chỉnh sửa người dùng</h3>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700">Tên</label>
+                            <input
+                                type="text"
+                                name="name"
+                                value={editData.name}
+                                onChange={handleEditChange}
+                                className="mt-1 block w-full border p-2 rounded text-sm"
+                            />
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-sm font-medium text-gray-700">Email</label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={editData.email}
+                                onChange={handleEditChange}
+                                className="mt-1 block w-full border p-2 rounded text-sm"
+                            />
+                        </div>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={closeEditModal}
+                                className="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={saveEdit}
+                                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                            >
+                                Lưu
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {deleteConfirm && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className="bg-white p-6 rounded-lg shadow-lg w-96">
+                        <h3 className="text-lg font-semibold mb-4">Xác nhận xóa</h3>
+                        <p>Bạn có chắc chắn muốn xóa người dùng này?</p>
+                        <div className="mt-4 flex justify-end">
+                            <button
+                                onClick={cancelDelete}
+                                className="bg-gray-500 text-white px-4 py-2 rounded mr-2 hover:bg-gray-600"
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={() => deleteUser(deleteConfirm)}
+                                className="bg-pink-300 text-white px-4 py-2 rounded hover:bg-pink-400"
+                            >
+                                Xóa
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
 
 export default Users;
-
-
-
-// import React, { useState } from "react";
-
-// const initialUsers = [
-//     { id: 1, name: "John Doe", email: "john@example.com", phone: "123-456-7890", role: "Admin" },
-//     { id: 2, name: "Alice Smith", email: "alice@example.com", phone: "987-654-3210", role: "User" },
-//     { id: 3, name: "Bob Johnson", email: "bob@example.com", phone: "456-789-1234", role: "User" },
-// ];
-
-// const Users = () => {
-//     const [users, setUsers] = useState(initialUsers);
-//     const [editUser, setEditUser] = useState(null); // Lưu user đang chỉnh sửa
-
-//     const startEdit = (user) => {
-//         setEditUser(user);
-//     };
-
-//     const handleEditChange = (e) => {
-//         setEditUser({ ...editUser, [e.target.name]: e.target.value });
-//     };
-
-//     const saveEdit = () => {
-//         setUsers(users.map(user => (user.id === editUser.id ? editUser : user)));
-//         setEditUser(null);
-//     };
-
-//     const cancelEdit = () => {
-//         setEditUser(null);
-//     };
-
-//     const deleteUser = (id) => {
-//         setUsers(users.filter(user => user.id !== id));
-//     };
-
-//     return (
-//         <div className="p-6 max-w-4xl mx-auto bg-gray-100 min-h-screen">
-//             <h2 className="text-2xl font-semibold mb-4">User Management</h2>
-
-//             {/* Ẩn danh sách user nếu đang chỉnh sửa */}
-//             {!editUser && (
-//                 <div className="bg-white shadow-md rounded-lg overflow-hidden">
-//                     <table className="w-full border-collapse">
-//                         <thead>
-//                             <tr className="bg-gray-200">
-//                                 <th className="p-3 text-left">ID</th>
-//                                 <th className="p-3 text-left">Name</th>
-//                                 <th className="p-3 text-left">Email</th>
-//                                 <th className="p-3 text-left">Phone</th>
-//                                 <th className="p-3 text-left">Role</th>
-//                                 <th className="p-3 text-left">Actions</th>
-//                             </tr>
-//                         </thead>
-//                         <tbody>
-//                             {users.map((user) => (
-//                                 <tr key={user.id} className="border-b">
-//                                     <td className="p-3">{user.id}</td>
-//                                     <td className="p-3">{user.name}</td>
-//                                     <td className="p-3">{user.email}</td>
-//                                     <td className="p-3">{user.phone}</td>
-//                                     <td className="p-3">
-//                                         <span className={`px-2 py-1 text-xs font-semibold rounded ${user.role === "Admin" ? "bg-red-200 text-red-800" : "bg-blue-200 text-blue-800"}`}>
-//                                             {user.role}
-//                                         </span>
-//                                     </td>
-//                                     <td className="p-3">
-//                                         <button onClick={() => startEdit(user)} className="bg-yellow-500 text-white px-3 py-1 rounded mr-2 hover:bg-yellow-600">Edit</button>
-//                                         <button onClick={() => deleteUser(user.id)} className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600">Delete</button>
-//                                     </td>
-//                                 </tr>
-//                             ))}
-//                         </tbody>
-//                     </table>
-//                 </div>
-//             )}
-
-//             {/* Modal chỉnh sửa user */}
-//             {editUser && (
-//                 <div className="fixed inset-0 flex items-center justify-center bg-opacity-50">
-//                     <div className="bg-white p-6 rounded-lg shadow-lg w-96">
-//                         <h3 className="text-xl font-semibold mb-4">Edit User: {editUser.name}</h3>
-//                         <div>
-//                             <label className="block text-gray-700">Name</label>
-//                             <input type="text" name="name" value={editUser.name} onChange={handleEditChange} className="border p-2 w-full" />
-//                         </div>
-//                         <div>
-//                             <label className="block text-gray-700">Email</label>
-//                             <input type="email" name="email" value={editUser.email} onChange={handleEditChange} className="border p-2 w-full" />
-//                         </div>
-
-//                         <div>
-//                             <label className="block text-gray-700">Role</label>
-//                             <select name="role" value={editUser.role} onChange={handleEditChange} className="border p-2 w-full">
-//                                 <option value="Admin">Admin</option>
-//                                 <option value="User">User</option>
-//                             </select>
-//                         </div>
-//                         <div className="mt-4 flex justify-end">
-//                             <button onClick={saveEdit} className="bg-green-500 text-white px-4 py-2 rounded mr-2 hover:bg-green-600">Save</button>
-//                             <button onClick={cancelEdit} className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600">Cancel</button>
-//                         </div>
-//                     </div>
-//                 </div>
-//             )}
-//         </div>
-//     );
-// };
-//
-// export default Users;
-
-
-
-// import React, { useState } from "react";
-
-// const initialUsers = [
-//     { id: 1, name: "Nguyễn Văn A", email: "a@example.com" },
-//     { id: 2, name: "Trần Thị B", email: "b@example.com" },
-// ];
-
-// const Users = () => {
-//     const [users, setUsers] = useState(initialUsers);
-//     const [editUser, setEditUser] = useState(null);
-
-//     const handleEditClick = (user) => {
-//         setEditUser(user);
-//     };
-
-//     const handleSave = () => {
-//         setUsers(users.map((user) => (user.id === editUser.id ? editUser : user)));
-//         setEditUser(null);
-//     };
-
-//     return (
-//         <div className="p-5">
-//             <h2 className="text-xl font-bold mb-4">Danh sách người dùng</h2>
-
-//             {!editUser && (
-//                 <table className="w-full border-collapse border border-gray-300">
-//                     <thead>
-//                         <tr className="bg-gray-100">
-//                             <th className="border border-gray-300 p-2">ID</th>
-//                             <th className="border border-gray-300 p-2">Họ & Tên</th>
-//                             <th className="border border-gray-300 p-2">Email</th>
-//                             <th className="border border-gray-300 p-2">Hành động</th>
-//                         </tr>
-//                     </thead>
-//                     <tbody>
-//                         {users.map((user) => (
-//                             <tr key={user.id}>
-//                                 <td className="border border-gray-300 p-2">{user.id}</td>
-//                                 <td className="border border-gray-300 p-2">{user.name}</td>
-//                                 <td className="border border-gray-300 p-2">{user.email}</td>
-//                                 <td className="border border-gray-300 p-2">
-//                                     <button
-//                                         className="bg-yellow-500 text-white px-3 py-1 rounded"
-//                                         onClick={() => handleEditClick(user)}
-//                                     >
-//                                         Sửa
-//                                     </button>
-//                                 </td>
-//                             </tr>
-//                         ))}
-//                     </tbody>
-//                 </table>
-//             )}
-
-//             {editUser && (
-//                 <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-//                     <div className="bg-white p-5 rounded shadow-lg w-1/3">
-//                         <h3 className="text-lg font-bold mb-3">Chỉnh sửa người dùng</h3>
-//                         <div className="mb-3">
-//                             <label className="block">Họ & Tên</label>
-//                             <input
-//                                 type="text"
-//                                 className="border p-2 w-full"
-//                                 value={editUser.name}
-//                                 onChange={(e) => setEditUser({ ...editUser, name: e.target.value })}
-//                             />
-//                         </div>
-//                         <div className="mb-3">
-//                             <label className="block">Email</label>
-//                             <input
-//                                 type="email"
-//                                 className="border p-2 w-full"
-//                                 value={editUser.email}
-//                                 onChange={(e) => setEditUser({ ...editUser, email: e.target.value })}
-//                             />
-//                         </div>
-//                         <div className="flex justify-end space-x-2">
-//                             <button className="bg-gray-500 text-white px-4 py-2 rounded" onClick={() => setEditUser(null)}>
-//                                 Hủy
-//                             </button>
-//                             <button className="bg-green-500 text-white px-4 py-2 rounded" onClick={handleSave}>
-//                                 Lưu
-//                             </button>
-//                         </div>
-//                     </div>
-//                 </div>
-//             )}
-//         </div>
-//     );
-// };
-
-// export default Users;
-
-
-
-
-

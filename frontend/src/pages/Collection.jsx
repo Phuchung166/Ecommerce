@@ -6,81 +6,47 @@ import ProductItem from '../components/ProductItem';
 
 const Collection = () => {
 
-  const { products, search, showSearch } = useContext(ShopContext);
+  const { products, page, setPage, totalPages, category, setCategory, subCategory, setSubCategory, sortType, setSortType, search, showSearch, loading } = useContext(ShopContext);
   const [showFilter, setShowFilter] = useState(false);
-  const [filterProducts, setFilterProducts] = useState([]);
-  const [category, setCategory] = useState([]);
-  const [subCategory, setSubCategory] = useState([]);
-  const [sortType, setSortType] = useState('relavent');
+  // const [filterProducts, setFilterProducts] = useState([]);
+  // const [category, setCategory] = useState([]);
+  // const [subCategory, setSubCategory] = useState([]);
+  // const [sortType, setSortType] = useState('relavent');
 
   const toggleCategory = (e) => {
 
-    if(category.includes(e.target.value)){
-      setCategory(prev=> prev.filter(item => item !== e.target.value ))
+    if (category.includes(e.target.value)) {
+      setCategory(prev => prev.filter(item => item !== e.target.value))
     }
-    else{
+    else {
       setCategory(prev => [...prev, e.target.value])
     }
+    setPage(1); // Reset về trang 1 khi thay đổi bộ lọc
 
   }
 
   const toggleSubCategory = (e) => {
 
-    if(subCategory.includes(e.target.value)){
-      setSubCategory(prev=> prev.filter(item => item!== e.target.value ))
+    if (subCategory.includes(e.target.value)) {
+      setSubCategory(prev => prev.filter(item => item !== e.target.value))
     }
-    else{
+    else {
       setSubCategory(prev => [...prev, e.target.value])
     }
-  }
-
-  const applyFilter = () => {
-
-    let productsCopy = products.slice();
-
-    if (showSearch && search) {
-      productsCopy = productsCopy.filter(item => item.name.toLowerCase().includes(search.toLowerCase()));
-    }
-
-    if(category.length > 0){
-      productsCopy = productsCopy.filter(item => category.includes(item.category));
-    }
-
-    if(subCategory.length > 0){
-      productsCopy = productsCopy.filter(item => subCategory.includes(item.subCategory));
-    }
-
-    setFilterProducts(productsCopy);
+    setPage(1); // Reset về trang 1 khi thay đổi bộ lọc
 
   }
 
-  const sortProduct = () => {
+  const handleSortChange = (e) => {
+    setSortType(e.target.value);
+    setPage(1); // Reset về trang 1 khi thay đổi sắp xếp
+  };
 
-    let fpCopy = products.slice();
-
-    switch (sortType) {
-      case 'low-high':
-        setFilterProducts(fpCopy.sort((a, b)=>(a.price - b.price)));
-        break;
-
-      case 'high-low':
-        setFilterProducts(fpCopy.sort((a, b)=>(b.price - a.price)));
-        break;
-
-      default:
-        applyFilter();
-        break;
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
     }
-
-  }
-
-  useEffect(() => {
-    applyFilter();
-  }, [category, subCategory, search, showSearch]);
-
-  useEffect(()=>{
-    sortProduct();
-  }, [sortType])
+  };
 
   return (
     <div className='flex flex-col sm:flex-row gap-1 sm:gap-10 pt-10 border-t'>
@@ -107,7 +73,7 @@ const Collection = () => {
         </div>
         {/* SubCategory Filter */}
         <div className={`border border-gray-300 pl-5 py-3 my-5 ${showFilter ? '' : 'hidden'} sm:block`}>
-          <p className='mb-3 text-sm font-medium'>TPYE</p>
+          <p className='mb-3 text-sm font-medium'>TYPE</p>
           <div className='flex flex-col gap-2 text-sm font-light text-gray-700'>
             <p className='flex gap-2'>
               <input className='w-3' type="checkbox" value={'Topwear'} onChange={toggleSubCategory} />Topwear
@@ -127,7 +93,7 @@ const Collection = () => {
         <div className='flex justify-between text-base sm:text-2xl mb-4'>
           <Title text1={'ALL'} text2={'COLLECTIONS'} />
           {/* Product Sort */}
-          <select onChange={(e)=>setSortType(e.target.value)} className='border-2 border-gray-300 text-sm px-2'>
+          <select onChange={handleSortChange} className='border-2 border-gray-300 text-sm px-2'>
             <option value="relavent">Sắp xếp theo: Liên quan</option>
             <option value="low-high">Sắp xếp theo: Thấp đến Cao</option>
             <option value="high-low">Sắp xếp theo: Cao đến Thấp</option>
@@ -135,15 +101,46 @@ const Collection = () => {
         </div>
 
         {/* Map Products */}
-        <div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 gap-y-6'>
+        {loading ? (
+          <div className="text-center py-8">Đang tải...</div>
+        ) : products.length > 0 ? (<div className='grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 gap-y-6'>
           {
-            filterProducts.map((item, index)=>(
+            products.map((item, index) => (
               <ProductItem key={index} id={item._id} name={item.name} image={item.image} price={item.price} />
             ))
           }
         </div>
+        ) : (
+        <div className="text-center py-8">Không tìm thấy sản phẩm nào.</div>
+        )}
 
-
+        {/* Pagination */}
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+            className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 cursor-pointer"
+          >
+            Trang trước
+          </button>
+          {[...Array(totalPages)].map((_, index) => (
+            <button
+              key={index}
+              onClick={() => handlePageChange(index + 1)}
+              className={`px-4 py-2 mx-1 ${page === index + 1 ? 'bg-[#EE4D2D] text-white cursor-pointer' : 'bg-gray-200 cursor-pointer'
+                } rounded`}
+            >
+              {index + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page === totalPages}
+            className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 cursor-pointer"
+          >
+            Trang sau
+          </button>
+        </div>
       </div>
     </div>
   )

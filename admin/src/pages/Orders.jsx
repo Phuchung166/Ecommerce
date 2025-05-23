@@ -1,102 +1,142 @@
-import React from "react";
-import { assets } from "../assets/assets";
+import React, { useEffect, useState } from 'react'
+import axios from 'axios'
+import { backendUrl, currency } from '../App'
+import { toast } from 'react-toastify'
+import { assets } from '../assets/assets'
 
-const orders = [
-  {
-    id: 1,
-    image: assets.p_img1,
-    items: [
-      "Kid Tapered Slim Fit Trouser x 1 S",
-      "Kid Tapered Slim Fit Trouser x 1 XL",
-    ],
-    customer: {
-      name: "Abderrahmane Laajili",
-      address: "Lot lmnara 2 N 63, Sidi Slimane, Rabat-Sale-Kenitra, Morocco, 14200",
-    },
-    totalItems: 2,
-    totalPrice: "$108",
-    method: "COD",
-    payment: "Pending",
-    date: "22/3/2025",
-    status: "Packing",
-  },
-  {
-    id: 2,
-    image: assets.p_img2,
-    items: ["Men Round Neck Pure Cotton T-shirt x 2 XXL"],
-    customer: {
-      name: "rwrrw wrwrwrw",
-      address: "wrwrwr, wrwrwr, wrwrwr, fsss, 121212",
-    },
-    totalItems: 1,
-    totalPrice: "$138",
-    method: "COD",
-    payment: "Pending",
-    date: "22/3/2025",
-    status: "Delivered",
-  },
-  {
-    id: 3,
-    image: assets.p_img3,
-    items: ["Kid Tapered Slim Fit Trouser x 2 M"],
-    customer: {
-      name: "Kyla Metz",
-      address: "94408 Franecki-Bernier Skyway, Columbia, Texas, Luxembourg, 36",
-    },
-    totalItems: 1,
-    totalPrice: "$122",
-    method: "COD",
-    payment: "Pending",
-    date: "22/3/2025",
-    status: "Delivered",
-  },
-];
+const Orders = ({ token }) => {
 
-const Orders = () => {
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(false);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const fetchAllOrders = async () => {
+
+    if (!token) {
+      return null
+    }
+
+    try {
+
+      const response = await axios.post(backendUrl + '/api/order/list', {}, { headers: { token }, params: { page, limit }, })
+      // console.log(response.data);
+      if (response.data.success) {
+        setOrders(response.data.orders)
+        setTotalPages(response.data.totalPages);
+      } else {
+        toast.error(response.data.message)
+      }
+
+
+    } catch (error) {
+      toast.error(error.message)
+    }
+
+  }
+
+  const statusHandler = async (event, orderId) => {
+    try {
+      const response = await axios.post(backendUrl + '/api/order/status', { orderId, status: event.target.value }, { headers: { token } })
+      if (response.data.success) {
+        await fetchAllOrders()
+      }
+
+    } catch (error) {
+      console.log(error);
+      toast.error(response.data.message)
+    }
+  }
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages) {
+      setPage(newPage);
+    }
+  };
+
+  useEffect(() => {
+    fetchAllOrders();
+  }, [token, page])
+
   return (
-    <div className="p-6 max-w-8xl mx-auto bg-gray-100 min-h-screen">
-      <h2 className="text-2xl font-semibold mb-4">Order Page</h2>
-      <div className="space-y-4">
-        {orders.map((order) => (
-          <div
-            key={order.id}
-            className="bg-white p-4 shadow-md rounded-lg flex items-center justify-between"
-          >
-            <div className="flex items-start space-x-4">
-              <img
-                src={order.image}
-                alt="Product"
-                className="w-12 h-12 object-cover"
-              />
+    <div>
+      <h3>Order Page</h3>
+      <div>
+        {
+          orders.map((order, index) => (
+            <div className='grid grid-cols-1 sm:grid-cols-[0.5fr_2fr_1fr] lg:grid-cols-[0.5fr_2fr_1fr_1fr_1fr] gap-3 items-start border-2 border-gray-200 p-5 md:p-8 my-3 md:my-4 text-xs sm:text-sm text-gray-700' key={index}>
+              <img className='w-12' src={assets.parcel_icon} alt="" />
               <div>
-                <p>{order.items.join(" , ")}</p>
-                <p className="font-bold mt-1">{order.customer.name}</p>
-                <p className="text-sm text-gray-600">{order.customer.address}</p>
-                <p className="text-sm mt-1">
-                  <span className="font-semibold">Items:</span> {order.totalItems} &nbsp;
-                  <span className="font-semibold">Method:</span> {order.method} &nbsp;
-                  <span className="font-semibold">Payment:</span> {order.payment} &nbsp;
-                  <span className="font-semibold">Date:</span> {order.date}
-                </p>
+                <div>
+                  {
+                    order.items.map((item, index) => {
+                      if (index === order.items.length - 1) {
+                        return <p className='py-0.5' key={index}> {item.name} x {item.quantity} <span> {item.size} </span> </p>
+                      }
+                      else {
+                        return <p className='py-0.5' key={index}> {item.name} x {item.quantity} <span> {item.size} </span> ,</p>
+                      }
+                    })
+                  }
+                </div>
+                <p className='mt-3 mb-2 font-medium'>{order.address.firstName + " " + order.address.lastName}</p>
+                <p>{order.address.ward + ", " + order.address.district + ", " + order.address.city}</p>
+                <p>{order.address.phone}</p>
               </div>
-            </div>
-            <div className="flex items-center space-x-6">
-              <p className="text-lg font-semibold">{order.totalPrice}</p>
-              <select
-                className="border p-2 rounded-md bg-gray-100"
-                defaultValue={order.status}
-              >
+              <div>
+                <p className='text-sm sm:text-[15px]'>Items : {order.items.length}</p>
+                <p className='mt-3'>Method : {order.paymentMethod}</p>
+                <p>Payment : {order.payment ? 'Done' : 'Pending'}</p>
+                <p>Date : {new Date(order.date).toLocaleDateString()}</p>
+              </div>
+              <p className='text-sm sm:text-[15px]'>{currency}{order.amount}</p>
+              <select onChange={(event) => statusHandler(event, order._id)} value={order.status} className='p-2 font-semibold' >
+                <option value="Order Placed">Order Placed</option>
                 <option value="Packing">Packing</option>
                 <option value="Shipped">Shipped</option>
+                <option value="Out for delivery">Out for delivery</option>
                 <option value="Delivered">Delivered</option>
-                <option value="Cancelled">Cancelled</option>
               </select>
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
 
-export default Orders;
+          ))
+        }
+      </div>
+
+      {/* Phân trang */}
+      {totalPages > 1 && (
+        <div className="flex justify-center mt-8">
+          <button
+            onClick={() => handlePageChange(page - 1)}
+            disabled={page === 1}
+            className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 cursor-pointer"
+          >
+            Trang trước
+          </button>
+          {[...Array(totalPages)].map((_, index) => (
+            <button
+              key={index}
+              onClick={() => handlePageChange(index + 1)}
+              className={`px-4 py-2 mx-1 ${page === index + 1 ? 'bg-pink-300 text-white cursor-pointer' : 'bg-gray-200 cursor-pointer'
+                } rounded hover:bg-pink-200`}
+            >
+              {index + 1}
+            </button>
+          ))}
+          <button
+            onClick={() => handlePageChange(page + 1)}
+            disabled={page === totalPages}
+            className="px-4 py-2 mx-1 bg-gray-200 rounded disabled:opacity-50 hover:bg-gray-300 cursor-pointer"
+          >
+            Trang sau
+          </button>
+        </div>
+      )}
+
+    </div>
+  )
+}
+
+export default Orders
+

@@ -9,6 +9,10 @@ import p_img3 from './p_img3.png'
 import p_img4 from './p_img4.png'
 import p_img5 from './p_img5.png'
 import logo_PH2 from './logo_PH2.png'
+import user_icon from './user_icon.png'
+import feedback_icon from './feedback_icon.png'
+import shopping_bag from './shopping_bag.png'
+import product_description from './product_description.png'
 
 export const assets = {
     logo_PH2,
@@ -17,6 +21,10 @@ export const assets = {
     order_icon,
     upload_area,
     parcel_icon,
+    user_icon,
+    feedback_icon,
+    shopping_bag,
+    product_description,
     p_img1,
     p_img2,
     p_img3,
